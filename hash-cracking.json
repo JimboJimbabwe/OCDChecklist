@@ -1,0 +1,40 @@
+{
+  "Crack Hash": {
+    "LM": {
+      "format": "john --format=lm hash.txt",
+      "hashcat": "hashcat -m 3000 -a 3 hash.txt"
+    },
+    "NTLM": {
+      "format": "john --format=nt hash.txt",
+      "hashcat": "hashcat -m 1000 -a 3 hash.txt"
+    },
+    "NetNTLMv1": {
+      "format": "john --format=netntlm hash.txt",
+      "hashcat": "hashcat -m 5500 -a 3 hash.txt",
+      "online_resource": "https://crack.sh/"
+    },
+    "NetNTLMv2": {
+      "format": "john --format=netntlmv2 hash.txt",
+      "hashcat": "hashcat -m 5600 -a 0 hash.txt rockyou.txt"
+    },
+    "Kerberos_Hashes": {
+      "Kerberos_5_TGS": {
+        "format": "john spn.txt --format=krb5tgs --wordlist=rockyou.txt",
+        "hashcat": "hashcat -m 13100 -a 0 spn.txt rockyou.txt"
+      },
+      "Kerberos_5_TGS_AES128": {
+        "hashcat": "hashcat -m 19600 -a 0 spn.txt rockyou.txt"
+      },
+      "Kerberos_5_TGS_AES256": {
+        "hashcat": "hashcat -m 19700 -a 0 spn.txt rockyou.txt"
+      },
+      "Kerberos_ASREP": {
+        "hashcat": "hashcat -m 18200 -a 0 AS-REP.roast-hashes rockyou.txt"
+      }
+    },
+    "MSCache2": {
+      "notes": "slow",
+      "hashcat": "hashcat -m 2100 -a 0 mscache-hash rockyou.txt"
+    }
+  }
+}

